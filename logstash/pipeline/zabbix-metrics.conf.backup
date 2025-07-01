@@ -1,0 +1,153 @@
+input {
+  http {
+    host => "0.0.0.0"
+    port => 5044
+    codec => json
+    type => "zabbix-metrics"
+    add_field => { "pipeline" => "zabbix-http-input" }
+  }
+}
+
+filter {
+  if [type] == "zabbix-metrics" {
+    
+    # Convert Unix timestamp to proper datetime
+    if [clock] {
+      date {
+        match => [ "clock", "UNIX" ]
+        target => "@timestamp"
+      }
+      
+      # Keep original clock value as well
+      mutate {
+        convert => { "clock" => "integer" }
+      }
+    }
+    
+    # Handle different data types based on the source table
+    if [table_type] == "history" {
+      # Float/double values from history table
+      mutate {
+        convert => { 
+          "value" => "float" 
+          "itemid" => "integer"
+          "ns" => "integer"
+        }
+        add_field => { 
+          "data_type" => "numeric"
+          "value_category" => "float"
+        }
+      }
+    } else if [table_type] == "history_uint" {
+      # Unsigned integer values from history_uint table
+      mutate {
+        convert => { 
+          "value" => "integer" 
+          "itemid" => "integer"
+          "ns" => "integer"
+        }
+        add_field => { 
+          "data_type" => "numeric"
+          "value_category" => "integer"
+        }
+      }
+    }
+    
+    # Create InfluxDB measurement name from item_key - FIX COMMAS!
+    if [item_key] {
+      mutate {
+        copy => { "item_key" => "measurement" }
+      }
+      
+      # Clean measurement name for InfluxDB compatibility - REMOVE COMMAS!
+      mutate {
+        gsub => [
+          "measurement", "\.", "_",
+          "measurement", "\[", "_",
+          "measurement", "\]", "_",
+          "measurement", "\(", "_",
+          "measurement", "\)", "_",
+          "measurement", "-", "_",
+          "measurement", " ", "_",
+          "measurement", "/", "_",
+          "measurement", ",", "_"
+        ]
+      }
+    } else {
+      mutate {
+        add_field => { "measurement" => "unknown_metric" }
+      }
+    }
+    
+    # Clean hostname for InfluxDB tags
+    if [hostname] {
+      mutate {
+        copy => { "hostname" => "host_name" }
+        gsub => [
+          "host_name", " ", "_",
+          "host_name", "-", "_",
+          "host_name", ",", "_"
+        ]
+      }
+    }
+    
+    # Clean units
+    if [units] {
+      mutate {
+        copy => { "units" => "unit_type" }
+        gsub => [
+          "unit_type", '"', '',
+          "unit_type", "'", '',
+          "unit_type", " ", "_",
+          "unit_type", ",", "_"
+        ]
+      }
+    } else {
+      mutate {
+        add_field => { "unit_type" => "none" }
+      }
+    }
+    
+    # Add metadata fields
+    mutate {
+      add_field => { 
+        "source_system" => "zabbix"
+      }
+      convert => { "itemid" => "string" }
+    }
+    
+    # Remove unnecessary fields
+    mutate {
+      remove_field => [ 
+        "headers", 
+        "host", 
+        "@version"
+      ]
+    }
+  }
+}
+
+output {
+  # Send to InfluxDB v2 with FIXED line protocol
+  if [data_type] == "numeric" {
+    http {
+      url => "http://influxdb:8086/api/v2/write?org=zabbix-org&bucket=zabbix-metrics&precision=s"
+      http_method => "post"
+      headers => {
+        "Authorization" => "Token my-super-secret-auth-token"
+        "Content-Type" => "text/plain"
+      }
+      
+      # FIXED InfluxDB line protocol format - escape spaces in tag values
+      format => "message"
+      message => "%{measurement},host=%{host_name},item_id=%{itemid},data_type=%{data_type},unit=%{unit_type} value=%{value} %{clock}"
+    }
+  }
+  
+  # Debug output
+  stdout {
+    codec => rubydebug {
+      metadata => false
+    }
+  }
+}

@@ -1,0 +1,344 @@
+
+###############################################################################
+# 1. Networks & Volumes
+###############################################################################
+networks:
+  zabbix-network:
+    driver: bridge
+
+volumes:
+  # MySQL data for Zabbix DB
+  zabbix-db-volume:
+    driver: local
+  
+  # Persisted Zabbix alert scripts, external scripts, etc.
+  zabbix-alertscripts:
+    driver: local
+  
+  # Persisted Zabbix external scripts (if used)
+  zabbix-externalscripts:
+    driver: local
+  
+  # InfluxDB data and config
+  influxdb-data:
+    driver: local
+  influxdb-config:
+    driver: local
+
+  grafana-data:
+    driver: local
+
+  # AI Engine volumes
+  ai-models:
+    driver: local
+  ai-logs: 
+    driver: local
+  ai-metrics:
+    driver: local
+
+###############################################################################
+# 2. Services
+###############################################################################
+services:
+  #############################################################################
+  # 2.1. MySQL 8.0 (Zabbix Database)
+  #############################################################################
+  mysql-server:
+    image: mysql:8.0
+    container_name: zabbix-mysql
+    restart: always
+    networks:
+      - zabbix-network
+    environment:
+      MYSQL_ROOT_PASSWORD: "root"
+      MYSQL_USER: "zabbix"
+      MYSQL_PASSWORD: "root"
+      MYSQL_DATABASE: "zabbix"
+      TZ: "Africa/Tunis"
+    volumes:
+      - zabbix-db-volume:/var/lib/mysql
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_bin
+      - --explicit_defaults_for_timestamp=1
+      - --default-time-zone=+01:00
+      - --log-bin-trust-function-creators=1
+      # Complete SSL and authentication fix
+      - --default-authentication-plugin=mysql_native_password
+      - --skip-ssl
+      - --ssl=OFF
+      - --tls-version=
+      - --skip-mysqlx
+      - --require-secure-transport=OFF
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-u", "root", "-proot"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    ports:
+      - "3306:3306"
+
+  #############################################################################
+  # 2.2. Zabbix Server (MySQL backend)
+  #############################################################################
+  zabbix-server:
+    image: zabbix/zabbix-server-mysql:6.0-ubuntu-latest
+    container_name: zabbix-server
+    restart: always
+    depends_on:
+      mysql-server:
+        condition: service_healthy
+    networks:
+      - zabbix-network
+    environment:
+      DB_SERVER_HOST: "mysql-server"
+      MYSQL_DATABASE: "zabbix"
+      MYSQL_USER: "zabbix"
+      MYSQL_PASSWORD: "root"
+      ZBX_STARTAGENTS: "5"
+      TZ: "Africa/Tunis"
+    volumes:
+      - zabbix-alertscripts:/usr/lib/zabbix/alertscripts
+      - zabbix-externalscripts:/usr/lib/zabbix/externalscripts
+    ports:
+      - "10051:10051"
+    healthcheck:
+      test: ["CMD", "zabbix_server", "-V"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  #############################################################################
+  # 2.3. Zabbix Web Frontend (Apache + PHP 8.1)
+  #############################################################################
+  zabbix-web:
+    image: zabbix/zabbix-web-apache-mysql:6.0-ubuntu-latest
+    container_name: zabbix-web
+    restart: always
+    depends_on:
+      mysql-server:
+        condition: service_healthy
+      zabbix-server:
+        condition: service_started
+    networks:
+      - zabbix-network
+    environment:
+      DB_SERVER_HOST: "mysql-server"
+      MYSQL_DATABASE: "zabbix"
+      MYSQL_USER: "zabbix"
+      MYSQL_PASSWORD: "root"
+      PHP_TZ: "Africa/Tunis"
+    ports:
+      - "80:8080"
+
+  #############################################################################
+  # 2.4. Zabbix Agent (monitors host metrics & logs)
+  #############################################################################
+  zabbix-agent:
+    image: zabbix/zabbix-agent:6.0-ubuntu-latest
+    container_name: zabbix-agent
+    restart: always
+    networks:
+      - zabbix-network
+    environment:
+#      ZBX_SERVER_HOST: "zabbix-server"
+#      ZBX_HOSTNAME: "ubuntu-2204-host"
+#      ZBX_SERVER_PORT: "10051"
+      TZ: "Africa/Tunis"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+      - /var/log:/var/log:ro
+    ports:
+      - "10050:10050"
+#    command: >
+#      /bin/sh -c '
+#      sed -i "s|^Hostname=Zabbix server|Hostname=$${ZBX_HOSTNAME}|g" /etc/zabbix/zabbix_agentd.conf &&
+#      sed -i "s|^Server=127.0.0.1|Server=$${ZBX_SERVER_HOST}|g" /etc/zabbix/zabbix_agentd.conf &&
+#      sed -i "s|^ServerActive=127.0.0.1|ServerActive=$${ZBX_SERVER_HOST}|g" /etc/zabbix/zabbix_agentd.conf &&
+#      sed -i "s|^ListenPort=10050|ListenPort=10050|g" /etc/zabbix/zabbix_agentd.conf &&
+#      /usr/sbin/zabbix_agentd -f
+#      '
+    healthcheck:
+      test: ["CMD", "zabbix_agentd", "-t", "system.uptime"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  #############################################################################
+  # 2.5. InfluxDB v2 (Time-series database for metrics)
+  #############################################################################
+  influxdb:
+    image: influxdb:2.7
+    container_name: zabbix-influxdb
+    restart: always
+    networks:
+      - zabbix-network
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: admin
+      DOCKER_INFLUXDB_INIT_PASSWORD: password123
+      DOCKER_INFLUXDB_INIT_ORG: zabbix-org
+      DOCKER_INFLUXDB_INIT_BUCKET: zabbix-metrics
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: my-super-secret-auth-token
+      TZ: "Africa/Tunis"
+    volumes:
+      - influxdb-data:/var/lib/influxdb2
+      - influxdb-config:/etc/influxdb2
+    ports:
+      - "8086:8086"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8086/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  #############################################################################
+  # 2.6. Logstash (Data pipeline processor)
+  #############################################################################
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.11.0
+    container_name: zabbix-logstash
+    restart: always
+    depends_on:
+      influxdb:
+        condition: service_healthy
+      mysql-server:
+        condition: service_healthy
+    networks:
+      - zabbix-network
+    environment:
+      TZ: "Africa/Tunis"
+      LS_JAVA_OPTS: "-Xmx1g -Xms1g"
+    volumes:
+      - ./logstash/config:/usr/share/logstash/config:ro
+      - ./logstash/pipeline:/usr/share/logstash/pipeline:ro
+    ports:
+      - "5044:5044"  # HTTP input
+      - "9600:9600"  # Logstash API
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9600"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  #############################################################################
+  # 2.7. Zabbix Data Exporter (Automated MySQL to Logstash)
+  #############################################################################
+  zabbix-exporter:
+    image: alpine:latest
+    container_name: zabbix-exporter
+    restart: always
+    depends_on:
+      mysql-server:
+        condition: service_healthy
+      logstash:
+        condition: service_healthy
+      zabbix-host-configurator:
+        condition: service_started
+
+    networks:
+      - zabbix-network
+    environment:
+      TZ: "Africa/Tunis"
+      MYSQL_HOST: "mysql-server"
+      MYSQL_USER: "zabbix"
+      MYSQL_PASSWORD: "root"
+      MYSQL_DATABASE: "zabbix"
+      LOGSTASH_URL: "http://logstash:5044"
+      EXPORT_INTERVAL: "60"
+    volumes:
+      - ./scripts/zabbix-exporter.sh:/tmp/zabbix-exporter.sh:ro
+    command: >
+      /bin/sh -c '
+      apk add --no-cache mysql-client curl jq &&
+      cp /tmp/zabbix-exporter.sh /usr/local/bin/zabbix-exporter.sh &&
+      chmod +x /usr/local/bin/zabbix-exporter.sh &&
+      /usr/local/bin/zabbix-exporter.sh
+      '
+
+  #############################################################################
+  # 2.8. Grafana (Visualization Dashboard)
+  #############################################################################
+  # Update the grafana service volumes section
+  grafana:
+    image: grafana/grafana:10.2.0
+    container_name: zabbix-grafana
+    restart: always
+    depends_on:
+      influxdb:
+        condition: service_healthy
+    networks:
+      - zabbix-network
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin123
+      GF_INSTALL_PLUGINS: grafana-clock-panel,grafana-simple-json-datasource
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_ROOT_URL: "http://localhost:3000"
+      TZ: "Africa/Tunis"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+  #############################################################################
+  # 2.9. Zabbix Host Auto-Configurator (Separate Service)
+  #############################################################################
+  zabbix-host-configurator:
+    image: alpine:latest
+    container_name: zabbix-host-configurator
+    restart: "no"
+    depends_on:
+      zabbix-web:
+        condition: service_healthy
+      zabbix-agent:
+        condition: service_healthy
+    networks:
+      - zabbix-network
+    volumes:
+      - ./scripts/create-host.sh:/create-host.sh:ro
+    command: sh /create-host.sh
+
+
+  #############################################################################
+  # 2.10. AI Engine (Machine Learning & Anomaly Detection)
+  #############################################################################
+  ai-engine:
+    build: ./ai-engine
+    container_name: zabbix-ai-engine
+    restart: always
+    depends_on:
+      influxdb:
+        condition: service_healthy
+      mysql-server:
+        condition: service_healthy
+    networks:
+      - zabbix-network
+    environment:
+      INFLUXDB_URL: "http://influxdb:8086"
+      INFLUXDB_TOKEN: "my-super-secret-auth-token"
+      INFLUXDB_ORG: "zabbix-org"
+      INFLUXDB_BUCKET: "zabbix-metrics"
+      MYSQL_HOST: "mysql-server"
+      MYSQL_USER: "zabbix"
+      MYSQL_PASSWORD: "root"
+      MYSQL_DATABASE: "zabbix"
+      TZ: "Africa/Tunis"
+    volumes:
+      - ai-models:/app/models
+      - ai-logs:/app/logs
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3

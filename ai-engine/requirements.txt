@@ -1,0 +1,32 @@
+# FastAPI ecosystem
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+
+# ML libraries
+scikit-learn==1.3.2
+prophet==1.1.5
+pandas==2.1.3
+numpy==1.24.3
+shap==0.42.1
+
+# Database connectors
+influxdb-client[async]==1.38.0
+mysql-connector-python==8.2.0
+aiomysql==0.2.0
+
+# Async libraries
+aiohttp==3.9.1
+httpx==0.25.2
+aiofiles==23.2.1
+
+# Utilities
+schedule==1.2.0
+docker==6.1.3
+joblib==1.3.2
+pydantic-settings==2.0.3
+python-dotenv==1.0.0
+loguru==0.7.2
+
+# Time series analysis
+scipy==1.11.4
+statsmodels==0.14.0

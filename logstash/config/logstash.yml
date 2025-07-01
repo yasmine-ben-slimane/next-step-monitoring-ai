@@ -1,0 +1,7 @@
+http.host: "0.0.0.0"
+xpack.monitoring.enabled: false
+pipeline.ecs_compatibility: disabled
+config.reload.automatic: true
+config.reload.interval: 10s
+log.level: info
+path.logs: /usr/share/logstash/logs

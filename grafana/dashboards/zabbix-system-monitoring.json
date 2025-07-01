@@ -1,0 +1,366 @@
+{
+  "id": null,
+  "uid": "zabbix-dashboard-001",
+  "title": "Zabbix System Monitoring - Enhanced",
+  "tags": ["zabbix", "system", "monitoring"],
+  "timezone": "Africa/Tunis",
+  "schemaVersion": 38,
+  "version": 2,
+  "refresh": "30s",
+  "time": {
+    "from": "now-2h",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Root Filesystem Usage",
+      "type": "gauge",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-zabbix-001"
+      },
+      "targets": [
+        {
+          "query": "from(bucket: \"zabbix-metrics\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"vfs_fs_size_etc_hosts_pused\")\n  |> filter(fn: (r) => r[\"_field\"] == \"value\")\n  |> last()",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "decimals": 1,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 70
+              },
+              {
+                "color": "orange",
+                "value": 85
+              },
+              {
+                "color": "red",
+                "value": 95
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "orientation": "auto",
+        "reduceOptions": {
+          "values": false,
+          "calcs": ["lastNotNull"],
+          "fields": ""
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": 5,
+      "title": "System Uptime",
+      "type": "stat",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-zabbix-001"
+      },
+      "targets": [
+        {
+          "query": "from(bucket: \"zabbix-metrics\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"system_uptime\")\n  |> filter(fn: (r) => r[\"_field\"] == \"value\")\n  |> last()",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "dtdurations",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 3600
+              },
+              {
+                "color": "green",
+                "value": 86400
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "orientation": "auto",
+        "reduceOptions": {
+          "values": false,
+          "calcs": ["lastNotNull"],
+          "fields": ""
+        },
+        "textMode": "auto",
+        "wideLayout": true,
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      }
+    },
+    {
+      "id": 3,
+      "title": "Memory Utilization",
+      "type": "stat",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-zabbix-001"
+      },
+      "targets": [
+        {
+          "query": "from(bucket: \"zabbix-metrics\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"vm_memory_utilization\")\n  |> filter(fn: (r) => r[\"_field\"] == \"value\")\n  |> last()",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "decimals": 1,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 70
+              },
+              {
+                "color": "orange",
+                "value": 85
+              },
+              {
+                "color": "red",
+                "value": 95
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "orientation": "auto",
+        "reduceOptions": {
+          "values": false,
+          "calcs": ["lastNotNull"],
+          "fields": ""
+        },
+        "textMode": "auto",
+        "wideLayout": true,
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      }
+    },
+    {
+      "id": 4,
+      "title": "Swap Free Space",
+      "type": "bargauge",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-zabbix-001"
+      },
+      "targets": [
+        {
+          "query": "from(bucket: \"zabbix-metrics\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"system_swap_size_pfree\")\n  |> filter(fn: (r) => r[\"_field\"] == \"value\")\n  |> last()",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "decimals": 1,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 10
+              },
+              {
+                "color": "yellow",
+                "value": 20
+              },
+              {
+                "color": "green",
+                "value": 50
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "values": false,
+          "calcs": ["lastNotNull"],
+          "fields": ""
+        },
+        "displayMode": "basic",
+        "showUnfilled": true
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      }
+    },
+    {
+      "id": 2,
+      "title": "System Overview",
+      "type": "timeseries",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-zabbix-001"
+      },
+      "targets": [
+        {
+          "query": "from(bucket: \"zabbix-metrics\")\n  |> range(start: -30m)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"vm_memory_utilization\")\n  |> filter(fn: (r) => r[\"_field\"] == \"value\")\n  |> aggregateWindow(every: 1m, fn: mean, createEmpty: false)",
+          "refId": "Memory"
+        },
+        {
+          "query": "from(bucket: \"zabbix-metrics\")\n  |> range(start: -30m)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"system_cpu_util_user\")\n  |> filter(fn: (r) => r[\"_field\"] == \"value\")\n  |> aggregateWindow(every: 1m, fn: mean, createEmpty: false)",
+          "refId": "CPU"
+        },
+        {
+          "query": "from(bucket: \"zabbix-metrics\")\n  |> range(start: -30m)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"vfs_fs_size_etc_hosts_pused\")\n  |> filter(fn: (r) => r[\"_field\"] == \"value\")\n  |> aggregateWindow(every: 1m, fn: mean, createEmpty: false)",
+          "refId": "Disk"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "decimals": 1,
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Memory"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "CPU"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Disk"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": ["last", "max", "mean"]
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 20
+      }
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+- pipeline.id: zabbix-metrics
+  path.config: "/usr/share/logstash/pipeline/zabbix-metrics.conf"
+  pipeline.workers: 2
+  pipeline.batch.size: 500
+  pipeline.batch.delay: 5

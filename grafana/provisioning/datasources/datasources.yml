@@ -1,0 +1,29 @@
+apiVersion: 1
+
+datasources:
+  - name: InfluxDB-Zabbix
+    type: influxdb
+    access: proxy
+    uid: influxdb-zabbix-001
+    url: http://influxdb:8086
+    database: ""
+    isDefault: true
+    jsonData:
+      version: Flux
+      organization: zabbix-org
+      defaultBucket: zabbix-metrics
+      tlsSkipVerify: true
+    secureJsonData:
+      token: my-super-secret-auth-token
+    editable: true
+
+  - name: AI-Engine
+    type: grafana-simple-json-datasource
+    access: proxy
+    uid: ai-engine-001
+    url: http://ai-engine:8000
+    isDefault: false
+    jsonData:
+      httpMethod: GET
+      timeout: 30
+    editable: true
